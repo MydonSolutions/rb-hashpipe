@@ -234,12 +234,12 @@ end
 
 # If we got nothing, exit
 if instance_ids.empty?
-  puts "No status buffers to gateway"
+  puts "No status buffers to gateway!"
   exit 1
 end
 
 gwinst_list = instance_ids.map {|i| "#{OPTS[:gwname]}/#{i}"}
-puts "Gateway Hashpipe instances: #{gwinst_list.join(' ')}"
+puts "Gateway Hashpipe instance(s): #{gwinst_list.join(' ')}"
 
 # Set OPTS[:instance_ids] to those that we have
 OPTS[:instance_ids] = instance_ids
@@ -269,8 +269,22 @@ grset_chan_to_insts = {}
 # Create subscribe thread
 subscribe_thread = Thread.new do
   # Create Redis objects for publishing/subscribing
-  publisher  = Redis.new(:host => OPTS[:server])
-  subscriber = Redis.new(:host => OPTS[:server])
+  publisher  = Redis.new(:host => OPTS[:server], 
+    :connect_timeout => 2.0,
+    :read_timeout    => 1.0,
+    :write_timeout   => 2.0, # default is 1.0
+    :reconnect_attempts => 5,
+    :reconnect_delay => 0.5,
+    :reconnect_delay_max => 5.0
+  )
+  subscriber = Redis.new(:host => OPTS[:server], 
+    :connect_timeout => 2.0,
+    :read_timeout    => 1.0,
+    :write_timeout   => 1.0,
+    :reconnect_attempts => 5,
+    :reconnect_delay => 0.5,
+    :reconnect_delay_max => 5.0
+  )
   subscriber.subscribe(BCASTSET_CHANNEL, *SBSET_CHANNELS,
                        BCASTREQ_CHANNEL, *SBREQ_CHANNELS,
                        BCASTCMD_CHANNEL, GWCMD_CHANNEL, *SBCMD_CHANNELS) do |on|
@@ -524,8 +538,17 @@ def update_redis(redis, instance_ids, notify=false)
   end # redis.pipelined
 end # def update_redis
 
+puts "Altered redis timeouts!"
 # Create Redis object
-redis = Redis.new(:host => OPTS[:server])
+redis = Redis.new(:host => OPTS[:server],
+  :connect_timeout => 2.0,
+  :read_timeout    => 1.0,
+  :write_timeout   => 2.0, # default is 1.0
+  :reconnect_attempts => 5,
+  :reconnect_delay => 0.5,
+  :reconnect_delay_max => 5.0,
+)
+
 
 # Loop until subscribe_thread stops
 while subscribe_thread.alive?
